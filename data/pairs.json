@@ -1,0 +1,22 @@
+[
+  {"symbol":"EURUSD","label":"EUR/USD","category":"Forex","active":true},
+  {"symbol":"GBPUSD","label":"GBP/USD","category":"Forex","active":true},
+  {"symbol":"USDJPY","label":"USD/JPY","category":"Forex","active":true},
+  {"symbol":"AUDUSD","label":"AUD/USD","category":"Forex","active":true},
+  {"symbol":"USDCAD","label":"USD/CAD","category":"Forex","active":true},
+  {"symbol":"EURJPY","label":"EUR/JPY","category":"Forex","active":true},
+  {"symbol":"GBPJPY","label":"GBP/JPY","category":"Forex","active":true},
+  {"symbol":"EURUSD_OTC","label":"EUR/USD (OTC)","category":"OTC","active":true},
+  {"symbol":"GBPUSD_OTC","label":"GBP/USD (OTC)","category":"OTC","active":true},
+  {"symbol":"USDJPY_OTC","label":"USD/JPY (OTC)","category":"OTC","active":true},
+  {"symbol":"AUDUSD_OTC","label":"AUD/USD (OTC)","category":"OTC","active":true},
+  {"symbol":"USDCAD_OTC","label":"USD/CAD (OTC)","category":"OTC","active":true},
+  {"symbol":"EURJPY_OTC","label":"EUR/JPY (OTC)","category":"OTC","active":true},
+  {"symbol":"GBPJPY_OTC","label":"GBP/JPY (OTC)","category":"OTC","active":true},
+  {"symbol":"BTCUSD","label":"BTC/USD","category":"Crypto","active":true},
+  {"symbol":"ETHUSD","label":"ETH/USD","category":"Crypto","active":true},
+  {"symbol":"XAUUSD","label":"Gold","category":"Commodity","active":true},
+  {"symbol":"XAGUSD","label":"Silver","category":"Commodity","active":true},
+  {"symbol":"US100","label":"US Tech 100","category":"Index","active":true},
+  {"symbol":"US500","label":"US 500","category":"Index","active":true}
+]
