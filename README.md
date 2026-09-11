@@ -70,6 +70,7 @@ python app.py
 | `TTS_API_URL` / `TTS_API_KEY` | Required for voice mode | Your original-voice TTS bridge; must return OGG/Opus audio |
 | `ALERT_SCAN_SECONDS` | Optional | Watchlist scan interval; defaults to 120 seconds |
 | `DATA_CACHE_SECONDS` | Optional | Candle cache window; defaults to 20 seconds |
+| `SCAN_PAIR_LIMIT` | Optional | Maximum configured pairs per scan; defaults to 80 |
 | `ADMIN_TELEGRAM_IDS` | Optional | Comma-separated IDs allowed to use `/reloadpairs` |
 
 Never commit `.env`, bot tokens, data-provider keys or user chats to GitHub. Configure them as repository/deployment secrets.
