@@ -5,7 +5,9 @@ from time import time
 
 import httpx
 
-from config import MARKET_DATA_API_KEY, MARKET_DATA_API_URL, MAX_CANDLE_AGE_SECONDS
+from config import DATA_CACHE_SECONDS, MARKET_DATA_API_KEY, MARKET_DATA_API_URL, MAX_CANDLE_AGE_SECONDS
+
+_cache: dict[str, tuple[float, "CandleSeries"]] = {}
 
 
 class MarketDataUnavailable(Exception):
@@ -33,6 +35,9 @@ class CandleSeries:
 
 
 async def fetch_candles(symbol: str, limit: int = 80) -> CandleSeries:
+    cached = _cache.get(symbol)
+    if cached and time() - cached[0] < DATA_CACHE_SECONDS and cached[1].is_fresh:
+        return cached[1]
     if not MARKET_DATA_API_URL:
         raise MarketDataUnavailable("No candle-data bridge is configured.")
     headers = {"X-API-Key": MARKET_DATA_API_KEY} if MARKET_DATA_API_KEY else {}
@@ -64,4 +69,5 @@ async def fetch_candles(symbol: str, limit: int = 80) -> CandleSeries:
     series = CandleSeries(symbol=payload.get("symbol", symbol), source=payload.get("source", "configured data bridge"), candles=candles)
     if not series.is_fresh:
         raise MarketDataUnavailable("Candle data is stale; analysis paused.")
+    _cache[symbol] = (time(), series)
     return series
