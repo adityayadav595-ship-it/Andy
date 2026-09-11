@@ -19,6 +19,6 @@ TTS_API_URL = os.getenv("TTS_API_URL", "").rstrip("/")
 TTS_API_KEY = os.getenv("TTS_API_KEY", "").strip()
 ADMIN_IDS = {int(value) for value in os.getenv("ADMIN_TELEGRAM_IDS", "").split(",") if value.strip().isdigit()}
 MAX_CANDLE_AGE_SECONDS = 90
-SCAN_PAIR_LIMIT = 20
+SCAN_PAIR_LIMIT = max(1, int(os.getenv("SCAN_PAIR_LIMIT", "80")))
 ALERT_SCAN_SECONDS = max(60, int(os.getenv("ALERT_SCAN_SECONDS", "120")))
 DATA_CACHE_SECONDS = max(5, int(os.getenv("DATA_CACHE_SECONDS", "20")))
