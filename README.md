@@ -9,7 +9,11 @@ A GitHub-ready Telegram bot with an original, cinematic **ULTRON-style** persona
 - `/pairs` — browse all configured Normal, OTC, Crypto, Commodity and Index pairs
 - `/signal <pair>` — one-pair analysis using EMA 9/21, RSI 14, candle momentum and volatility
 - `/scan` — scans configured active pairs and lists only strong, fresh setups
+- `POWERPLAY` filtering — EMA 9/21/50/200 alignment, RSI, MACD, candle momentum, volatility and anti-FOMO checks
+- `WICKET ALERT` — explicitly blocks unstable, stretched or weak market conditions
 - `/market` — market-status overview
+- `/watch`, `/unwatch`, `/watchlist` — private tracked-pair list
+- `/alerts on` — private watchlist notifications for fresh selected observations
 - `/help` — command guide
 - Natural-language chat — concise, original ULTRON-style trading education replies
 - Optional voice notes via a user-controlled TTS bridge using an original dark robotic voice
@@ -64,6 +68,8 @@ python app.py
 | `OPENAI_MODEL` | Optional | Defaults to `gpt-4.1-mini` |
 | `VOICE_REPLY_MODE` | Optional | Set to `voice` to send TTS voice notes; defaults to text |
 | `TTS_API_URL` / `TTS_API_KEY` | Required for voice mode | Your original-voice TTS bridge; must return OGG/Opus audio |
+| `ALERT_SCAN_SECONDS` | Optional | Watchlist scan interval; defaults to 120 seconds |
+| `DATA_CACHE_SECONDS` | Optional | Candle cache window; defaults to 20 seconds |
 | `ADMIN_TELEGRAM_IDS` | Optional | Comma-separated IDs allowed to use `/reloadpairs` |
 
 Never commit `.env`, bot tokens, data-provider keys or user chats to GitHub. Configure them as repository/deployment secrets.
@@ -75,6 +81,8 @@ For voice mode, your bridge should accept `POST /synthesize` with `{ "text": "�
 ## Deployment
 
 GitHub stores the project. A Telegram bot needs an always-on runtime, so deploy this repo to Render, Railway, Fly.io, or a VPS. `render.yaml` and `Dockerfile` are included for a worker deployment. Add the environment variables above in the host dashboard; do not paste secrets into source code.
+
+Private watchlists and alert settings are stored in `data/ultron.sqlite3`. Attach persistent disk storage in production; otherwise a host restart clears those local preferences.
 
 ## Safety behaviour
 
