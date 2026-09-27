@@ -1,0 +1,58 @@
+name: Run Adi bot - 60 minute test
+
+# Bounded integration test. This is not continuous hosting.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adi-telegram-reaction-listener
+  cancel-in-progress: false
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    defaults:
+      run:
+        working-directory: reaction-bot
+    steps:
+      - name: Check out verified reaction-bot code
+        uses: actions/checkout@v7
+        with:
+          # Verified code from the adi-reaction-bot-24x7 branch.
+          ref: 62acfe2e7902a9156445d6274137aa21c26695c1
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Check required Secrets are present
+        env:
+          BOT_TOKENS: ${{ secrets.BOT_TOKENS }}
+          TARGET_CHANNEL_IDS: ${{ secrets.TARGET_CHANNEL_IDS }}
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          required = ('BOT_TOKENS', 'TARGET_CHANNEL_IDS')
+          missing = [name for name in required if not os.environ.get(name, '').strip()]
+          if missing:
+              sys.exit('Add these repository Secrets before running: ' + ', '.join(missing))
+          print('Required Secrets are present. Values are not printed.')
+          PY
+      - name: Install dependency
+        run: python -m pip install -r requirements.txt
+      - name: Validate configuration without Telegram requests
+        env:
+          BOT_TOKENS: ${{ secrets.BOT_TOKENS }}
+          TARGET_CHANNEL_IDS: ${{ secrets.TARGET_CHANNEL_IDS }}
+        run: python bot.py --check-config
+      - name: Test new channel posts for 60 minutes
+        env:
+          BOT_TOKENS: ${{ secrets.BOT_TOKENS }}
+          TARGET_CHANNEL_IDS: ${{ secrets.TARGET_CHANNEL_IDS }}
+          PYTHONUNBUFFERED: '1'
+          PTB_TIMEDELTA: 'true'
+        run: python bot.py --run-minutes 60
