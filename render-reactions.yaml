@@ -1,0 +1,20 @@
+# Select this file as the Render Blueprint path.
+# Paid worker: review the current price before creating the service.
+services:
+  - type: worker
+    name: adi-telegram-reactions
+    runtime: docker
+    repo: https://github.com/adityayadav595-ship-it/Andy
+    branch: adi-reaction-bot-24x7
+    plan: 0.5c-512mb
+    region: singapore
+    numInstances: 1
+    autoDeployTrigger: "off"
+    dockerfilePath: ./reaction-bot/Dockerfile
+    dockerContext: ./reaction-bot
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: BOT_TOKENS
+        sync: false
+      - key: TARGET_CHANNEL_IDS
+        sync: false

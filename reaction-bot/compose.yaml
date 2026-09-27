@@ -1,0 +1,23 @@
+name: adi-reaction-bot
+
+services:
+  bot:
+    build: .
+    # The host must stay online. A manual stop remains stopped.
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
