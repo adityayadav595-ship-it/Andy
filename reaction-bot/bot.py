@@ -19,9 +19,9 @@ from telegram.error import Conflict, NetworkError, RetryAfter, TelegramError
 
 LOG = logging.getLogger("adi_bot")
 EMOJI_WEIGHTS = {"❤️": 40, "🔥": 25, "👍": 15, "🏆": 10, "💯": 10}
-INITIAL_DELAY = 60
-SINGLE_POST_DELAY = 120
-MULTI_POST_DELAY = 30
+INITIAL_DELAY = 10
+SINGLE_POST_DELAY = 10
+MULTI_POST_DELAY = 10
 MAX_CONCURRENT_REACTIONS = 5
 MAX_ACTIVE_POSTS = 100
 TOKEN_PATTERN = re.compile(r"\d{5,}:[A-Za-z0-9_-]{20,}")

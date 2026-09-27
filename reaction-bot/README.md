@@ -18,7 +18,7 @@ Deploy hone ke baad bot continuously online rehta hai aur har NEW channel post a
 4. **Paid worker ka current price review** karke deploy karo. GitHub connection se hosting purchase nahi hoti. GitHub Secrets automatically Render mein transfer nahi hote.
 5. Bots ko target channel mein add karo; reactions enable rakho. Logs mein `READY` ke baad naya post publish karo.
 
-Runtime command `python -u bot.py` hai. Worker mein 60-minute cutoff nahi hai. Host ko active rehna hoga. Pehla reaction original script ke hisaab se **60 seconds** baad attempt hota hai; phir **120 seconds** gap, multiple active posts par **30 seconds**.
+Runtime command `python -u bot.py` hai. Worker mein 60-minute cutoff nahi hai. Host ko active rehna hoga. Har nayi post par pehla reaction **10 seconds** baad attempt hota hai; phir usi post par har agle bot ka reaction **10 seconds** ke gap par, chahe ek post active ho ya multiple. Telegram rate-limit cooldown aaye to uska wait alag se follow hota hai.
 
 ## Start on your Docker server
 
@@ -63,3 +63,4 @@ Old uploaded tokens source mein include nahi kiye gaye. BotFather mein exposed t
 - [Render background workers](https://render.com/docs/background-workers)
 - [Render Blueprint configuration](https://render.com/docs/blueprint-spec)
 - [Docker restart policies](https://docs.docker.com/engine/containers/start-containers-automatically/)
+

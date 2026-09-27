@@ -84,20 +84,20 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
             date=self.runner.started_at + timedelta(seconds=age),
         )
 
-    async def test_single_post_original_delays(self):
+    async def test_single_post_ten_second_delays(self):
         with patch("bot.asyncio.sleep", new_callable=AsyncMock) as sleep:
             await self.runner.react_to_post(-100, 10)
-        self.assertEqual([call.args[0] for call in sleep.await_args_list], [60, 120])
+        self.assertEqual([call.args[0] for call in sleep.await_args_list], [10, 10])
         self.first.set_message_reaction.assert_awaited_once()
         self.second.set_message_reaction.assert_awaited_once()
         self.assertEqual(self.first.set_message_reaction.await_args.kwargs["chat_id"], -100)
 
-    async def test_multiple_post_original_delays(self):
-        # Only task count determines the original multi-post interval.
+    async def test_multiple_post_ten_second_delays(self):
+        # Multiple active posts keep the same ten-second interval per post.
         with patch.object(self.runner, "tasks", {"post_a", "post_b"}):
             with patch("bot.asyncio.sleep", new_callable=AsyncMock) as sleep:
                 await self.runner.react_to_post(-100, 10)
-        self.assertEqual([call.args[0] for call in sleep.await_args_list], [60, 30])
+        self.assertEqual([call.args[0] for call in sleep.await_args_list], [10, 10])
 
     async def test_duplicate_and_album_updates(self):
         self.assertTrue(self.runner.accept_post(self.post()))
