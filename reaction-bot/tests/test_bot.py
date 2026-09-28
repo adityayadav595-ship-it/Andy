@@ -55,9 +55,16 @@ class ConfigTests(unittest.TestCase):
 
     def test_filter_supported_reactions(self):
         chat = SimpleNamespace(available_reactions=[ReactionTypeEmoji("❤️")])
-        self.assertEqual(bot.allowed_weights(chat), {"❤️": 40})
+        self.assertEqual(bot.allowed_weights(chat), {"❤": 40})
         self.assertEqual(bot.allowed_weights(SimpleNamespace(available_reactions=[])), {})
         self.assertEqual(bot.allowed_weights(SimpleNamespace(available_reactions=None)), bot.EMOJI_WEIGHTS)
+
+    def test_positive_reactions_normalize_heart_and_exclude_negative(self):
+        chat = SimpleNamespace(available_reactions=[
+            ReactionTypeEmoji("❤"), ReactionTypeEmoji("❤️"),
+            ReactionTypeEmoji("👏"), ReactionTypeEmoji("👎"),
+        ])
+        self.assertEqual(bot.allowed_weights(chat), {"❤": 40, "👏": 10})
 
 
 def fake_bot(number=1):
@@ -81,7 +88,7 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
     def post(self, message_id=10, chat_id=-100, media_group_id=None, age=1):
         return SimpleNamespace(
             message_id=message_id, chat_id=chat_id, media_group_id=media_group_id,
-            date=self.runner.started_at + timedelta(seconds=age),
+            date=datetime.now(timezone.utc) + timedelta(seconds=age),
         )
 
     async def test_single_post_ten_second_delays(self):
@@ -100,17 +107,54 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([call.args[0] for call in sleep.await_args_list], [10, 10])
 
     async def test_duplicate_and_album_updates(self):
-        self.assertTrue(self.runner.accept_post(self.post()))
-        self.assertFalse(self.runner.accept_post(self.post()))
-        self.assertTrue(self.runner.accept_post(self.post(20, media_group_id="album-1")))
-        self.assertFalse(self.runner.accept_post(self.post(21, media_group_id="album-1")))
+        self.assertTrue(await self.runner.accept_post(self.post()))
+        self.assertFalse(await self.runner.accept_post(self.post()))
+        self.assertTrue(await self.runner.accept_post(self.post(20, media_group_id="album-1")))
+        self.assertFalse(await self.runner.accept_post(self.post(21, media_group_id="album-1")))
         self.assertEqual(len(self.runner.tasks), 2)
 
-    async def test_old_and_other_channel_posts_ignored(self):
-        self.assertFalse(self.runner.accept_post(None))
-        self.assertFalse(self.runner.accept_post(self.post(chat_id=-200)))
-        self.assertFalse(self.runner.accept_post(self.post(age=-10)))
-        self.assertEqual(len(self.runner.tasks), 0)
+    async def test_pending_posts_accepted_and_other_channels_ignored(self):
+        self.assertFalse(await self.runner.accept_post(None))
+        self.assertFalse(await self.runner.accept_post(self.post(chat_id=-200)))
+        self.assertTrue(await self.runner.accept_post(self.post(age=-3600)))
+        self.assertEqual(len(self.runner.tasks), 1)
+
+    def test_emoji_rotation_uses_all_allowed_choices_before_repeating(self):
+        choices = {"❤": 40, "🔥": 25, "💯": 10}
+        self.runner.weights_by_chat[-100] = choices
+        with patch("bot.random.choices", side_effect=lambda candidates, **kwargs: [candidates[0]]):
+            selected = [self.runner.next_emoji(-100) for _ in range(9)]
+        for start in range(0, 9, 3):
+            self.assertEqual(set(selected[start:start + 3]), set(choices))
+        self.assertTrue(all(first != second for first, second in zip(selected, selected[1:])))
+
+    def test_emoji_rotation_handles_single_allowed_choice(self):
+        self.runner.weights_by_chat[-100] = {"💯": 10}
+        self.assertEqual([self.runner.next_emoji(-100) for _ in range(3)], ["💯"] * 3)
+
+    async def test_full_capacity_waits_then_processes_next_post(self):
+        release = asyncio.Event()
+        detected = []
+
+        async def hold_reactions(chat_id, message_id):
+            detected.append(message_id)
+            await release.wait()
+
+        with patch("bot.MAX_ACTIVE_POSTS", 1), patch.object(self.runner, "react_to_post", side_effect=hold_reactions):
+            await self.runner.accept_post(self.post(10))
+            await asyncio.sleep(0)
+            waiting = asyncio.create_task(self.runner.accept_post(self.post(11)))
+            try:
+                await asyncio.sleep(0)
+                self.assertFalse(waiting.done())
+                self.assertEqual(detected, [10])
+                release.set()
+                self.assertTrue(await asyncio.wait_for(waiting, 1))
+                await asyncio.sleep(0)
+                self.assertEqual(detected, [10, 11])
+            finally:
+                waiting.cancel()
+                await asyncio.gather(waiting, return_exceptions=True)
 
     async def test_rate_limit_waits_and_retries(self):
         self.first.set_message_reaction.side_effect = [RetryAfter(2), True]
@@ -134,7 +178,7 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.first.set_message_reaction.assert_awaited_once()
 
     async def test_close_cancels_pending_reactions(self):
-        self.runner.accept_post(self.post())
+        await self.runner.accept_post(self.post())
         await self.runner.close()
         self.assertEqual(len(self.runner.tasks), 0)
         self.first.set_message_reaction.assert_not_awaited()
@@ -146,14 +190,26 @@ class PollAndChannelTests(unittest.IsolatedAsyncioTestCase):
         listener = SimpleNamespace(get_updates=AsyncMock(side_effect=[
             [SimpleNamespace(update_id=7, channel_post=post)], asyncio.CancelledError(),
         ]))
-        runner = SimpleNamespace(accept_post=Mock())
+        runner = SimpleNamespace(accept_post=AsyncMock())
         with self.assertRaises(asyncio.CancelledError):
             await bot.poll(listener, runner)
         calls = listener.get_updates.await_args_list
         self.assertIsNone(calls[0].kwargs["offset"])
         self.assertEqual(calls[1].kwargs["offset"], 8)
-        self.assertEqual(calls[0].kwargs["allowed_updates"], ["channel_post"])
-        runner.accept_post.assert_called_once_with(post)
+        self.assertEqual(calls[0].kwargs["allowed_updates"], ["channel_post", "edited_channel_post"])
+        runner.accept_post.assert_awaited_once_with(post)
+
+    async def test_poll_detects_edited_channel_posts(self):
+        post = object()
+        listener = SimpleNamespace(get_updates=AsyncMock(side_effect=[
+            [SimpleNamespace(update_id=8, channel_post=None, edited_channel_post=post)],
+            asyncio.CancelledError(),
+        ]))
+        runner = SimpleNamespace(accept_post=AsyncMock())
+        with self.assertRaises(asyncio.CancelledError):
+            await bot.poll(listener, runner)
+        runner.accept_post.assert_awaited_once_with(post)
+        self.assertEqual(listener.get_updates.await_args_list[1].kwargs["offset"], 9)
 
     async def test_poll_conflict_fails_clearly(self):
         listener = SimpleNamespace(get_updates=AsyncMock(side_effect=Conflict("mock conflict")))

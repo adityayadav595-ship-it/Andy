@@ -2,7 +2,7 @@
 
 Branch: `adi-reaction-bot-24x7` · Folder: `reaction-bot`
 
-Deploy hone ke baad bot continuously online rehta hai aur har NEW channel post automatically detect karta hai. Har message par manually Run dabana zaroori nahi.
+Bot running ho to configured channel ki har nayi post automatically detect hoti hai: text, photo, video, document, sticker aur doosre channel posts. Har post par manually Run dabana zaroori nahi. Edited posts aur Telegram ke available pending updates bhi detect hote hain.
 
 ## Start on Render
 
@@ -39,12 +39,14 @@ Tokens badalne ke baad `.env` save karke `docker compose up -d --force-recreate`
 ## Working behavior
 
 - Pehla valid bot channel-post listener banta hai; us bot ko har target channel mein hona chahiye.
-- Channel access wale bots weighted random emoji react karte hain: ❤️ 🔥 👍 🏆 💯. Sirf allowed emojis select hote hain.
+- Positive reaction pool: ❤ 🔥 👍 🥰 👏 😁 🎉 🤩 🙏 👌 🕊 😍 ❤‍🔥 💯 ⚡ 🏆 🍾 💋 😇 🤝 🤗 🫡 🆒 💘 😘 😎. Sirf channel mein enabled positive emojis use hote hain.
+- Emoji rotation har enabled positive emoji ko use karne ke baad naya cycle shuru karti hai. Ek se zyada emoji enabled ho to consecutive picks same nahi hote. Heart ke Unicode presentation formats normalize hote hain.
+- Agar sirf 💯 aa raha ho to Telegram mein Channel → Edit → Reactions par aur positive emojis enable karo, phir bot restart karo. Startup logs enabled emojis dikhate hain. Bot code channel ki reaction settings change nahi karta.
 - Ek running instance rakho. Same listener token doosre polling bot ya manual test mein simultaneously mat chalao.
 - Existing webhook automatically remove nahi hota. Dedicated listener token use karo.
 - Telegram rate limits respect hote hain; bounded retries aur network reconnect included hain.
-- In-memory duplicate/album filtering included hai. 100 simultaneous posts tak schedule hote hain.
-- Restart/downtime mein missed posts ya pending reactions automatically resume nahi hote. Host uptime aur delivery guarantee nahi hai.
+- In-memory duplicate/album filtering included hai: same post ki edit ya album ke doosre item par duplicate sequence nahi banta. 100 active posts par polling capacity ka wait karti hai; next post silently discard nahi hota.
+- Restart par Telegram mein bache unconfirmed updates automatically process hote hain; Telegram unhe maximum 24 hours rakhta hai. Yeh poori channel history fetch nahi karta. Pehle acknowledge ho chuki posts ki unfinished reactions restart par resume nahi hoti, aur duplicate memory process ke andar hi rehti hai. Host uptime aur delivery guarantee nahi hai.
 - Automated reactions actual members ka feedback ya independent endorsement nahi hain.
 
 ## Updates
@@ -55,6 +57,8 @@ Render auto-deploy initially off hai. Long-polling bots ke old/new instances rol
 
 `.github/workflows/adi-reactions-check.yml` offline tests aur container build run karta hai. Isme Telegram tokens nahi jaate. GitHub Actions continuous hosting nahi hai; GitHub-hosted job maximum 6 hours ka hota hai.
 
+Manual test: repository Actions → **Run Adi bot - 60 minute test** → **Run workflow**, branch **main**. Latest code lene ke liye naya Run workflow use karo. Koi purana listener run active ho to pehle Cancel workflow karke uske stop hone ka wait karo. Test running ho tab posts automatically detect hongi; test 60 minutes baad band hota hai.
+
 Old uploaded tokens source mein include nahi kiye gaye. BotFather mein exposed tokens revoke/regenerate karke NEW values sirf host secrets mein daalo. Code upload se bot live nahi hota: channel, tokens aur hosting activate karna zaroori hai.
 
 ## Official references
@@ -63,4 +67,5 @@ Old uploaded tokens source mein include nahi kiye gaye. BotFather mein exposed t
 - [Render background workers](https://render.com/docs/background-workers)
 - [Render Blueprint configuration](https://render.com/docs/blueprint-spec)
 - [Docker restart policies](https://docs.docker.com/engine/containers/start-containers-automatically/)
-
+- [Telegram updates and retention](https://core.telegram.org/bots/api#getting-updates)
+- [Telegram reaction emojis](https://core.telegram.org/bots/api#reactiontypeemoji)

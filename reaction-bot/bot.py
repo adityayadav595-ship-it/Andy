@@ -12,13 +12,19 @@ import signal
 from collections import deque
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from telegram import Bot, ReactionTypeEmoji
 from telegram.error import Conflict, NetworkError, RetryAfter, TelegramError
 
 LOG = logging.getLogger("adi_bot")
-EMOJI_WEIGHTS = {"❤️": 40, "🔥": 25, "👍": 15, "🏆": 10, "💯": 10}
+EMOJI_WEIGHTS = {
+    "❤": 40, "🔥": 25, "👍": 15, "🥰": 10, "👏": 10, "😁": 10,
+    "🎉": 10, "🤩": 10, "🙏": 10, "👌": 10, "🕊": 10, "😍": 10,
+    "❤‍🔥": 10, "💯": 10, "⚡": 10, "🏆": 10, "🍾": 10, "💋": 10,
+    "😇": 10, "🤝": 10, "🤗": 10, "🫡": 10, "🆒": 10, "💘": 10,
+    "😘": 10, "😎": 10,
+}
 INITIAL_DELAY = 10
 SINGLE_POST_DELAY = 10
 MULTI_POST_DELAY = 10
@@ -80,30 +86,38 @@ def allowed_weights(chat):
     available = getattr(chat, "available_reactions", None)
     if available is None:
         return dict(EMOJI_WEIGHTS)
-    allowed = {reaction.emoji for reaction in available if isinstance(reaction, ReactionTypeEmoji)}
+    # Telegram may return a heart with or without its emoji presentation selector.
+    allowed = {
+        reaction.emoji.replace("\ufe0f", "").replace("\ufe0e", "")
+        for reaction in available if isinstance(reaction, ReactionTypeEmoji)
+    }
     return {emoji: weight for emoji, weight in EMOJI_WEIGHTS.items() if emoji in allowed}
 
 
 class ReactionRunner:
-    def __init__(self, bots_by_chat, weights_by_chat, started_at=None):
+    def __init__(self, bots_by_chat, weights_by_chat):
         self.bots_by_chat = bots_by_chat
         self.weights_by_chat = weights_by_chat
-        self.started_at = started_at or datetime.now(timezone.utc)
         self.semaphore = asyncio.Semaphore(MAX_CONCURRENT_REACTIONS)
         self.bot_locks = {bot.id: asyncio.Lock() for bots in bots_by_chat.values() for bot in bots}
         self.seen = set()
         self.seen_order = deque()
         self.tasks = set()
+        self.emoji_bags = {}
+        self.last_emoji = {}
 
-    def accept_post(self, post):
-        if post is None or post.chat_id not in self.bots_by_chat or post.date < self.started_at:
+    async def accept_post(self, post):
+        if post is None or post.chat_id not in self.bots_by_chat:
             return False
         # A Telegram album shares reactions: schedule once, not for every album item.
         key = (post.chat_id, post.media_group_id or post.message_id)
         if key in self.seen:
             return False
-        if len(self.tasks) >= MAX_ACTIVE_POSTS:
-            LOG.warning("Active-post limit reached; this post was skipped.")
+        # Wait for capacity instead of acknowledging and silently dropping a post.
+        while len(self.tasks) >= MAX_ACTIVE_POSTS:
+            done, _ = await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
+            self.tasks.difference_update(done)
+        if key in self.seen:
             return False
         if len(self.seen_order) >= 10000:
             self.seen.discard(self.seen_order.popleft())
@@ -113,6 +127,17 @@ class ReactionRunner:
         self.tasks.add(task)
         task.add_done_callback(self.finished)
         return True
+
+    def next_emoji(self, chat_id):
+        weights = self.weights_by_chat[chat_id]
+        bag = self.emoji_bags.setdefault(chat_id, [])
+        if not bag:
+            bag.extend(weights)
+        candidates = [emoji for emoji in bag if emoji != self.last_emoji.get(chat_id)] or bag
+        emoji = random.choices(candidates, weights=[weights[item] for item in candidates], k=1)[0]
+        bag.remove(emoji)
+        self.last_emoji[chat_id] = emoji
+        return emoji
 
     def finished(self, task):
         self.tasks.discard(task)
@@ -145,13 +170,12 @@ class ReactionRunner:
         return False
 
     async def react_to_post(self, chat_id, message_id):
-        LOG.info("New post=%s; reactions start after %s seconds.", message_id, INITIAL_DELAY)
+        LOG.info("Post detected: %s; reactions start after %s seconds.", message_id, INITIAL_DELAY)
         await asyncio.sleep(INITIAL_DELAY)
         bots = list(self.bots_by_chat[chat_id])
         random.shuffle(bots)
-        weights = self.weights_by_chat[chat_id]
         for index, bot in enumerate(bots):
-            emoji = random.choices(list(weights), weights=list(weights.values()), k=1)[0]
+            emoji = self.next_emoji(chat_id)
             await self.react_with_bot(bot, chat_id, message_id, emoji)
             if index < len(bots) - 1:
                 delay = MULTI_POST_DELAY if len(self.tasks) > 1 else SINGLE_POST_DELAY
@@ -188,6 +212,9 @@ async def resolve_channels(listener, bots, channels):
         bots_by_chat[chat.id] = members
         weights_by_chat[chat.id] = weights
         LOG.info("Channel ready: %s accessible bot(s).", len(members))
+        LOG.info("Enabled positive reactions: %s", " ".join(weights))
+        if len(weights) == 1:
+            LOG.warning("Only one positive emoji is enabled in this channel. Enable more in Telegram channel reaction settings for variety.")
     return bots_by_chat, weights_by_chat
 
 
@@ -196,7 +223,7 @@ async def poll(listener, runner):
     while True:
         try:
             updates = await listener.get_updates(
-                offset=offset, timeout=20, allowed_updates=["channel_post"],
+                offset=offset, timeout=20, allowed_updates=["channel_post", "edited_channel_post"],
                 read_timeout=30, connect_timeout=15,
             )
         except Conflict as error:
@@ -209,8 +236,9 @@ async def poll(listener, runner):
             await asyncio.sleep(5)
             continue
         for update in updates:
+            post = update.channel_post or update.edited_channel_post
+            await runner.accept_post(post)
             offset = update.update_id + 1
-            runner.accept_post(update.channel_post)
 
 
 async def run(config, run_minutes):
@@ -243,7 +271,7 @@ async def run(config, run_minutes):
                 pass
         poll_task = asyncio.create_task(poll(listener, runner))
         stop_task = asyncio.create_task(stop.wait())
-        LOG.info("READY - publish a NEW channel post now. Older posts are ignored.")
+        LOG.info("READY - auto-detection ON for new, edited and pending channel posts.")
         if run_minutes:
             LOG.info("Manual test will stop after %s minutes.", run_minutes)
         try:
