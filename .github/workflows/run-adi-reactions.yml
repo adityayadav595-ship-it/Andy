@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           # Verified code from the adi-reaction-bot-24x7 branch.
-          ref: 62190982e8d54d730600efbf9579eb5ffa67264d
+          ref: d200ca7cc68f3ab6c6771acc19adf97515207a45
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
